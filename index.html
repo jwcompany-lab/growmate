@@ -2,7 +2,10 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="성장기록장" />
   <title>우리 아이 월별 성장 기록장</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,6 +15,7 @@
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
       background-color: #f8fafc;
       color: #1e293b;
+      -webkit-tap-highlight-color: transparent;
     }
     .tab-active {
       background-color: #2563eb;
@@ -24,34 +28,51 @@
       border: 1px solid #e2e8f0;
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
     }
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spin-sync {
+      display: inline-block;
+      animation: spinSlow 1s linear infinite;
+    }
   </style>
 </head>
 <body class="min-h-screen pb-16">
   <!-- 상단 헤더 -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
-    <div class="max-w-5xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2.5">
       <div class="flex items-center gap-2.5">
         <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
           🌱
         </div>
         <div>
-          <h1 class="text-lg font-bold text-slate-900 leading-tight">우리 아이 성장 기록장</h1>
-          <p class="text-xs text-slate-500">2026 질병관리청 소아청소년 성장도표 기준 비교</p>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">우리 아이 성장 기록장</h1>
+            <span id="syncBadge" onclick="openSettingsModal()" class="cursor-pointer text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-800">
+              🟡 실시간 연결 중...
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500">2026 질병관리청 소아청소년 성장도표 · 양방향 자동 동기화</p>
         </div>
       </div>
 
-      <!-- 데이터 백업/내보내기 버튼 -->
+      <!-- 우측 유틸 버튼 -->
       <div class="flex items-center gap-1.5 text-xs">
-        <button onclick="loadSampleData()" class="px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-medium transition">
-          샘플 체험
+        <button onclick="manualSync()" title="지금 즉시 동기화" class="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold transition flex items-center gap-1">
+          <span id="syncIcon">🔄</span>
+          <span class="hidden sm:inline">즉시동기화</span>
+        </button>
+        <button onclick="openSettingsModal()" class="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition">
+          ⚙️ 설정
         </button>
         <button onclick="exportCSV()" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium transition">
-          엑셀(CSV) 저장
+          엑셀
         </button>
-        <button onclick="exportJSON()" class="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition">
+        <button onclick="exportJSON()" class="hidden sm:inline-block px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition">
           백업
         </button>
-        <label class="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition cursor-pointer">
+        <label class="hidden sm:inline-block px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium transition cursor-pointer">
           복원
           <input type="file" accept=".json" onchange="importJSON(event)" class="hidden" />
         </label>
@@ -59,27 +80,32 @@
     </div>
   </header>
 
-  <main class="max-w-5xl mx-auto px-4 pt-5 space-y-5">
+  <main class="max-w-5xl mx-auto px-4 pt-4 sm:pt-5 space-y-4 sm:space-y-5">
     <!-- 자녀 선택 탭 & 추가 -->
     <section class="flex flex-wrap items-center justify-between gap-2">
       <div id="childTabs" class="flex flex-wrap items-center gap-2"></div>
-      <button onclick="openChildModal()" class="px-3.5 py-2 rounded-xl bg-white border border-dashed border-blue-400 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition">
-        + 자녀 추가
-      </button>
+      <div class="flex items-center gap-1.5">
+        <button onclick="loadSampleData()" class="px-3 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition">
+          샘플 데이터
+        </button>
+        <button onclick="openChildModal()" class="px-3.5 py-2 rounded-xl bg-white border border-dashed border-blue-400 text-blue-600 text-xs sm:text-sm font-semibold hover:bg-blue-50 transition">
+          + 자녀 추가
+        </button>
+      </div>
     </section>
 
     <!-- 선택된 자녀 프로필 요약 배너 -->
-    <section id="profileBanner" class="card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-blue-50/70 via-white to-indigo-50/60">
-      <div class="flex items-center gap-3.5">
-        <div id="avatarBadge" class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl font-bold">
+    <section class="card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-blue-50/70 via-white to-indigo-50/60">
+      <div class="flex items-center gap-3">
+        <div id="avatarBadge" class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl font-bold">
           👦
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h2 id="displayChildName" class="text-lg font-bold text-slate-900">-</h2>
+            <h2 id="displayChildName" class="text-base sm:text-lg font-bold text-slate-900">-</h2>
             <span id="displayChildGender" class="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700">-</span>
           </div>
-          <p id="displayChildAge" class="text-sm text-slate-600 mt-0.5">생년월일을 설정해주세요</p>
+          <p id="displayChildAge" class="text-xs sm:text-sm text-slate-600 mt-0.5">생년월일을 설정해주세요</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -92,14 +118,14 @@
       </div>
     </section>
 
-    <!-- 핵심 요약 카드 4종 (최근 키/백분위, 최근 몸무게/백분위, BMI, 최근 성장폭) -->
-    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-      <div class="card p-4">
+    <!-- 핵심 요약 카드 4종 -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="card p-3.5 sm:p-4">
         <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
           <span>최근 측정 키</span>
           <span id="heightDiffBadge" class="font-semibold text-blue-600">-</span>
         </div>
-        <div class="text-2xl font-extrabold text-slate-900" id="latestHeight">- <span class="text-sm font-normal text-slate-400">cm</span></div>
+        <div class="text-xl sm:text-2xl font-extrabold text-slate-900" id="latestHeight">- <span class="text-sm font-normal text-slate-400">cm</span></div>
         <div class="mt-2 pt-2 border-t border-slate-100 text-xs space-y-0.5">
           <div class="flex justify-between">
             <span class="text-slate-500">또래 평균</span>
@@ -112,12 +138,12 @@
         </div>
       </div>
 
-      <div class="card p-4">
+      <div class="card p-3.5 sm:p-4">
         <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
           <span>최근 측정 몸무게</span>
           <span id="weightDiffBadge" class="font-semibold text-emerald-600">-</span>
         </div>
-        <div class="text-2xl font-extrabold text-slate-900" id="latestWeight">- <span class="text-sm font-normal text-slate-400">kg</span></div>
+        <div class="text-xl sm:text-2xl font-extrabold text-slate-900" id="latestWeight">- <span class="text-sm font-normal text-slate-400">kg</span></div>
         <div class="mt-2 pt-2 border-t border-slate-100 text-xs space-y-0.5">
           <div class="flex justify-between">
             <span class="text-slate-500">또래 평균</span>
@@ -130,9 +156,9 @@
         </div>
       </div>
 
-      <div class="card p-4">
+      <div class="card p-3.5 sm:p-4">
         <div class="text-xs text-slate-500 mb-1">체질량지수 (BMI)</div>
-        <div class="text-2xl font-extrabold text-slate-900" id="latestBMI">-</div>
+        <div class="text-xl sm:text-2xl font-extrabold text-slate-900" id="latestBMI">-</div>
         <div class="mt-2 pt-2 border-t border-slate-100 text-xs space-y-0.5">
           <div class="flex justify-between">
             <span class="text-slate-500">체형 균형</span>
@@ -142,15 +168,15 @@
         </div>
       </div>
 
-      <div class="card p-4">
-        <div class="text-xs text-slate-500 mb-1">누적 기록 / 최근 월 성장</div>
-        <div class="text-2xl font-extrabold text-slate-900" id="totalRecordsCount">0<span class="text-sm font-normal text-slate-400">회</span></div>
+      <div class="card p-3.5 sm:p-4">
+        <div class="text-xs text-slate-500 mb-1">누적 기록 / 월 성장</div>
+        <div class="text-xl sm:text-2xl font-extrabold text-slate-900" id="totalRecordsCount">0<span class="text-sm font-normal text-slate-400">회</span></div>
         <div class="mt-2 pt-2 border-t border-slate-100 text-xs space-y-0.5">
           <div class="flex justify-between">
-            <span class="text-slate-500">직전 기록 대비</span>
-            <span class="font-semibold text-slate-700" id="recentGrowthRate">-</span>
+            <span class="text-slate-500">직전 월 대비</span>
+            <span class="font-semibold text-slate-700 truncate ml-1" id="recentGrowthRate">-</span>
           </div>
-          <div class="text-[11px] text-slate-400">월별 자동 정리 중</div>
+          <div class="text-[11px] text-slate-400" id="lastSyncTimeText">자동 동기화 대기</div>
         </div>
       </div>
     </section>
@@ -159,79 +185,75 @@
     <section class="card p-4 sm:p-5">
       <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1.5">
         <span>✏️ 새 성장 기록 입력</span>
-        <span class="text-xs font-normal text-slate-400">(날짜를 선택해 입력하면 해당 월로 자동 정리됩니다)</span>
+        <span class="text-xs font-normal text-slate-400">(입력하면 모든 기기에 5초 내 자동 반영)</span>
       </h3>
-      <form id="recordForm" onsubmit="addRecord(event)" class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-        <div class="sm:col-span-3">
+      <form id="recordForm" onsubmit="addRecord(event)" class="grid grid-cols-2 sm:grid-cols-12 gap-2.5 sm:gap-3 items-end">
+        <div class="col-span-2 sm:col-span-3">
           <label class="block text-xs font-semibold text-slate-600 mb-1">측정 날짜</label>
-          <input type="date" id="inputDate" required class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="date" id="inputDate" required class="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        <div class="sm:col-span-2">
+        <div class="col-span-1 sm:col-span-2">
           <label class="block text-xs font-semibold text-slate-600 mb-1">키 (cm)</label>
-          <input type="number" id="inputHeight" step="0.1" min="30" max="220" placeholder="예: 138.5" required class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="number" id="inputHeight" step="0.1" min="30" max="220" inputmode="decimal" placeholder="138.5" required class="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        <div class="sm:col-span-2">
+        <div class="col-span-1 sm:col-span-2">
           <label class="block text-xs font-semibold text-slate-600 mb-1">몸무게 (kg)</label>
-          <input type="number" id="inputWeight" step="0.1" min="1" max="180" placeholder="예: 34.2" required class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="number" id="inputWeight" step="0.1" min="1" max="180" inputmode="decimal" placeholder="34.2" required class="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        <div class="sm:col-span-3">
+        <div class="col-span-2 sm:col-span-3">
           <label class="block text-xs font-semibold text-slate-600 mb-1">메모 (선택)</label>
-          <input type="text" id="inputMemo" maxlength="40" placeholder="예: 학교 건강검진" class="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="text" id="inputMemo" maxlength="40" placeholder="예: 학교 건강검진" class="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        <div class="sm:col-span-2">
-          <button type="submit" class="w-full py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-sm transition">
+        <div class="col-span-2 sm:col-span-2">
+          <button type="submit" id="submitRecordBtn" class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-sm font-bold shadow-sm transition">
             기록 저장
           </button>
         </div>
       </form>
     </section>
 
-    <!-- 성장 곡선 선 그래프 (키 / 몸무게) -->
+    <!-- 성장 곡선 선 그래프 -->
     <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div class="card p-4 sm:p-5">
-        <div class="flex items-center justify-between mb-3">
-          <div>
-            <h3 class="text-sm font-bold text-slate-800">📈 키 성장 추이 (cm)</h3>
-            <p class="text-xs text-slate-400">우리 아이 키(실선) vs 또래 평균(점선)</p>
-          </div>
+        <div class="mb-3">
+          <h3 class="text-sm font-bold text-slate-800">📈 키 성장 추이 (cm)</h3>
+          <p class="text-xs text-slate-400">우리 아이 키(실선) vs 또래 평균(점선)</p>
         </div>
-        <div class="relative h-64">
+        <div class="relative h-60 sm:h-64">
           <canvas id="heightChart"></canvas>
         </div>
       </div>
 
       <div class="card p-4 sm:p-5">
-        <div class="flex items-center justify-between mb-3">
-          <div>
-            <h3 class="text-sm font-bold text-slate-800">⚖️ 몸무게 성장 추이 (kg)</h3>
-            <p class="text-xs text-slate-400">우리 아이 몸무게(실선) vs 또래 평균(점선)</p>
-          </div>
+        <div class="mb-3">
+          <h3 class="text-sm font-bold text-slate-800">⚖️ 몸무게 성장 추이 (kg)</h3>
+          <p class="text-xs text-slate-400">우리 아이 몸무게(실선) vs 또래 평균(점선)</p>
         </div>
-        <div class="relative h-64">
+        <div class="relative h-60 sm:h-64">
           <canvas id="weightChart"></canvas>
         </div>
       </div>
     </section>
 
-    <!-- 월별 정리 테이블 & 전체 기록 보기 탭 -->
+    <!-- 월별 정리 테이블 -->
     <section class="card overflow-hidden">
       <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 class="text-sm font-bold text-slate-800">📅 월별 성장 정리표</h3>
-          <p class="text-xs text-slate-400">각 월의 대표 측정치와 또래 평균 대비 백분위를 한눈에 확인하세요</p>
+          <p class="text-xs text-slate-400">월별 대표 측정치와 또래 평균 대비 백분위</p>
         </div>
         <div class="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
           <button id="viewMonthlyBtn" onclick="switchTableMode('monthly')" class="px-3 py-1.5 rounded-lg bg-white text-blue-600 shadow-sm transition">
-            월별 요약 보기
+            월별 요약
           </button>
           <button id="viewAllBtn" onclick="switchTableMode('all')" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">
-            전체 날짜별 보기
+            전체 날짜별
           </button>
         </div>
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-sm">
+        <table class="w-full text-left border-collapse text-sm whitespace-nowrap">
           <thead>
             <tr class="bg-slate-50 text-slate-500 text-xs border-b border-slate-200">
               <th class="py-3 px-4 font-semibold" id="colPeriodHeader">기준 월 (측정일)</th>
@@ -257,7 +279,7 @@
       <form onsubmit="saveChildProfile(event)" class="space-y-4">
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">자녀 이름 (또는 애칭)</label>
-          <input type="text" id="modalName" required maxlength="15" placeholder="예: 첫째, 지민이" class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="text" id="modalName" required maxlength="15" placeholder="예: 첫째, 지민이" class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">성별 (성장도표 기준 적용)</label>
@@ -278,7 +300,7 @@
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">생년월일</label>
-          <input type="date" id="modalBirthDate" required class="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="date" id="modalBirthDate" required class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="closeChildModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition">
@@ -292,10 +314,45 @@
     </div>
   </div>
 
+  <!-- 구글 시트 연동 설정 모달 -->
+  <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-slate-900">⚙️ 실시간 양방향 동기화 설정</h3>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+      </div>
+      <p class="text-xs text-slate-600 leading-relaxed">
+        화면이 열려 있는 동안 <b>5초 간격 자동 폴링</b>과 <b>화면 전환 즉시 동기화</b>가 작동하여 PC와 스마트폰 어디서 수정해도 양쪽에 자동 반영됩니다.
+      </p>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Apps Script 웹 앱 URL</label>
+        <input type="url" id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+        <button type="button" onclick="pushLocalToSheets()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 transition">
+          현재 화면 데이터를 시트로 덮어쓰기
+        </button>
+        <div class="flex gap-2">
+          <button type="button" onclick="closeSettingsModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition">
+            닫기
+          </button>
+          <button type="button" onclick="saveGasUrl()" class="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition">
+            연결 및 동기화
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // =========================================================================
-    // 1. 질병관리청(KDCA) 소아청소년 성장도표 기준 데이터 (0개월 ~ 216개월 / 만 18세)
-    //    [월령, 키 평균(cm), 키 표준편차, 몸무게 평균(kg), 몸무게 표준편차]
+    // 배포된 구글 Apps Script 웹 앱 URL
+    // =========================================================================
+    const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyldnmfvSXks-cMjMJl3VMmu40neY449FSRLAfLXKDidDhw0Ng8jPGcSaFuGt1nbnbq_g/exec';
+    const POLL_INTERVAL_MS = 5000; // 5초마다 양방향 자동 동기화
+
+    // =========================================================================
+    // 1. 2026 질병관리청(KDCA) 소아청소년 성장도표 기준 데이터 (0~216개월)
     // =========================================================================
     const GROWTH_STANDARDS = {
       M: [
@@ -320,7 +377,6 @@
       ]
     };
 
-    // 표준정규분포 누적확률함수 (Z-score -> 백분위 1~99)
     function normalCDF(z) {
       const t = 1 / (1 + 0.2316419 * Math.abs(z));
       const d = 0.3989423 * Math.exp((-z * z) / 2);
@@ -328,19 +384,22 @@
       return z > 0 ? 1 - prob : prob;
     }
 
-    // 생년월일과 기준일 사이의 정확한 개월 수(소수점 포함) 계산
+    function parseLocalDate(dateStr) {
+      const parts = String(dateStr).split('-').map(Number);
+      return new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
+    }
+
     function getExactMonths(birthDateStr, targetDateStr) {
-      const b = new Date(birthDateStr + 'T00:00:00');
-      const t = new Date(targetDateStr + 'T00:00:00');
+      const b = parseLocalDate(birthDateStr);
+      const t = parseLocalDate(targetDateStr);
       const diffDays = (t - b) / (1000 * 60 * 60 * 24);
       return Math.max(0, diffDays / 30.4375);
     }
 
-    // 사람이 읽기 쉬운 연령 텍스트 (예: 만 10세 2개월 / 122개월)
     function formatAgeText(birthDateStr, targetDateStr) {
-      const b = new Date(birthDateStr + 'T00:00:00');
-      const t = new Date(targetDateStr + 'T00:00:00');
-      if (t < b) return '출생 전 날짜';
+      const b = parseLocalDate(birthDateStr);
+      const t = parseLocalDate(targetDateStr);
+      if (t < b) return '출생 전';
       let years = t.getFullYear() - b.getFullYear();
       let months = t.getMonth() - b.getMonth();
       if (t.getDate() < b.getDate()) months--;
@@ -352,7 +411,6 @@
       return `만 ${years}세 ${months}개월 (${totalMonths}개월)`;
     }
 
-    // 해당 월령의 표준 키/몸무게 보간 및 백분위 산출
     function evaluateGrowth(gender, months, height, weight) {
       const table = GROWTH_STANDARDS[gender] || GROWTH_STANDARDS.M;
       const clampedM = Math.min(216, Math.max(0, months));
@@ -389,20 +447,175 @@
     }
 
     // =========================================================================
-    // 2. 상태 관리 (localStorage 영구 저장)
+    // 2. 실시간 양방향 동기화 엔진 (Auto-Polling + Visibility Sync + 쓰기 보호)
     // =========================================================================
-    const STORAGE_KEY = 'kids_growth_tracker_v1';
+    const STORAGE_KEY = 'kids_growth_tracker_v2';
+    const URL_STORAGE_KEY = 'kids_growth_gas_url';
+
     let appState = {
       selectedChildId: null,
-      tableMode: 'monthly', // 'monthly' | 'all'
+      tableMode: 'monthly',
       editingChild: false,
       children: []
     };
 
     let heightChartInstance = null;
     let weightChartInstance = null;
+    let isFetching = false;
+    let isWriting = false;
+    let lastWriteTimestamp = 0;
+    let lastDataSignature = '';
 
-    function loadState() {
+    function getGasUrl() {
+      return (localStorage.getItem(URL_STORAGE_KEY) || DEFAULT_GAS_URL || '').trim();
+    }
+
+    function setSyncStatus(state, silent = false) {
+      const badge = document.getElementById('syncBadge');
+      const icon = document.getElementById('syncIcon');
+      const timeText = document.getElementById('lastSyncTimeText');
+
+      if (state === 'syncing') {
+        if (!silent) {
+          badge.className = 'cursor-pointer text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-800';
+          badge.textContent = '🟡 동기화 중...';
+        }
+        icon.classList.add('spin-sync');
+      } else if (state === 'synced') {
+        badge.className = 'cursor-pointer text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-700';
+        badge.textContent = '🟢 실시간 연동됨 (5초)';
+        icon.classList.remove('spin-sync');
+        const now = new Date();
+        timeText.textContent = `동기화 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      } else if (state === 'error') {
+        badge.className = 'cursor-pointer text-[11px] px-2 py-0.5 rounded-full font-semibold bg-rose-100 text-rose-700';
+        badge.textContent = '🔴 연동 오류 (설정확인)';
+        icon.classList.remove('spin-sync');
+      } else {
+        badge.className = 'cursor-pointer text-[11px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-600';
+        badge.textContent = '⚪ 로컬 저장';
+        icon.classList.remove('spin-sync');
+        timeText.textContent = '로컬 브라우저 저장';
+      }
+    }
+
+    // silent = true 일 때는 백그라운드 폴링이므로 화면 깜빡임 없이 데이터가 바뀐 경우에만 재렌더링
+    async function fetchFromSheets(silent = false) {
+      const url = getGasUrl();
+      if (!url) {
+        setSyncStatus('local');
+        return;
+      }
+
+      // 저장 직후 4초간은 서버 반영 대기 시간을 위해 폴링 건너뜀
+      if (isFetching || isWriting) return;
+      if (silent && Date.now() - lastWriteTimestamp < 4000) return;
+
+      isFetching = true;
+      setSyncStatus('syncing', silent);
+
+      try {
+        const res = await fetch(`${url}?t=${Date.now()}`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        const data = await res.json();
+
+        if (data.status === 'ok' && Array.isArray(data.children)) {
+          if (data.children.length > 0) {
+            const incomingSig = JSON.stringify(data.children);
+            if (incomingSig !== lastDataSignature) {
+              lastDataSignature = incomingSig;
+              appState.children = data.children;
+              if (!appState.children.some(c => c.id === appState.selectedChildId)) {
+                appState.selectedChildId = appState.children[0].id;
+              }
+              saveLocalState();
+              renderAll();
+            }
+          }
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('error');
+        }
+      } catch (err) {
+        console.error('시트 조회 실패:', err);
+        setSyncStatus('error');
+      } finally {
+        isFetching = false;
+      }
+    }
+
+    async function postToSheets(payloadObj, skipStateReplace = false) {
+      const url = getGasUrl();
+      if (!url) {
+        setSyncStatus('local');
+        return;
+      }
+
+      isWriting = true;
+      lastWriteTimestamp = Date.now();
+      setSyncStatus('syncing', false);
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payloadObj)
+        });
+        const data = await res.json();
+        if (data.status === 'ok' && Array.isArray(data.children)) {
+          if (!skipStateReplace && data.children.length > 0) {
+            lastDataSignature = JSON.stringify(data.children);
+            appState.children = data.children;
+            if (!appState.children.some(c => c.id === appState.selectedChildId)) {
+              appState.selectedChildId = appState.children[0].id;
+            }
+            saveLocalState();
+            renderAll();
+          }
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('error');
+        }
+      } catch (err) {
+        console.error('시트 전송 실패:', err);
+        setSyncStatus('error');
+      } finally {
+        lastWriteTimestamp = Date.now();
+        isWriting = false;
+      }
+    }
+
+    function manualSync() {
+      if (!getGasUrl()) {
+        openSettingsModal();
+        return;
+      }
+      fetchFromSheets(false);
+    }
+
+    function startRealtimeSyncLoop() {
+      // 1) 5초마다 백그라운드 자동 폴링 (탭이 활성화된 상태일 때만 동작해 배터리/데이터 절약)
+      setInterval(() => {
+        if (!document.hidden) {
+          fetchFromSheets(true);
+        }
+      }, POLL_INTERVAL_MS);
+
+      // 2) 스마트폰에서 다른 앱 보다가 다시 돌아오거나 PC 브라우저 탭 클릭 시 즉시 동기화
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          fetchFromSheets(true);
+        }
+      });
+      window.addEventListener('focus', () => {
+        fetchFromSheets(true);
+      });
+    }
+
+    function loadLocalState() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
@@ -410,28 +623,22 @@
           if (parsed && Array.isArray(parsed.children) && parsed.children.length > 0) {
             appState.children = parsed.children;
             appState.selectedChildId = parsed.selectedChildId || parsed.children[0].id;
+            lastDataSignature = JSON.stringify(appState.children);
             return;
           }
         } catch (e) {
-          console.error('데이터 로드 오류:', e);
+          console.error(e);
         }
       }
-      // 초기 기본 자녀 1명 생성
       const defaultId = 'child_' + Date.now();
       appState.children = [
-        {
-          id: defaultId,
-          name: '첫째',
-          gender: 'M',
-          birthDate: '2016-05-15',
-          records: []
-        }
+        { id: defaultId, name: '첫째', gender: 'M', birthDate: '2016-05-15', records: [] }
       ];
       appState.selectedChildId = defaultId;
-      saveState();
+      saveLocalState();
     }
 
-    function saveState() {
+    function saveLocalState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         selectedChildId: appState.selectedChildId,
         children: appState.children
@@ -449,17 +656,17 @@
     }
 
     // =========================================================================
-    // 3. 월별 데이터 그룹핑 로직
+    // 3. 월별 데이터 그룹핑 및 UI 렌더링
     // =========================================================================
     function getSortedRecords(child) {
-      return [...child.records].sort((a, b) => a.date.localeCompare(b.date));
+      return [...(child.records || [])].sort((a, b) => a.date.localeCompare(b.date));
     }
 
     function getMonthlyGroupedRecords(child) {
       const sorted = getSortedRecords(child);
       const map = new Map();
       sorted.forEach(rec => {
-        const ym = rec.date.slice(0, 7); // YYYY-MM
+        const ym = rec.date.slice(0, 7);
         if (!map.has(ym)) {
           map.set(ym, { ym, latest: rec, count: 1 });
         } else {
@@ -471,13 +678,9 @@
       return Array.from(map.values());
     }
 
-    // =========================================================================
-    // 4. UI 렌더링
-    // =========================================================================
     function renderAll() {
       const child = getCurrentChild();
       if (!child) return;
-
       renderChildTabs();
       renderProfileBanner(child);
       renderSummaryCards(child);
@@ -492,7 +695,7 @@
         const icon = c.gender === 'M' ? '👦' : '👧';
         return `
           <button onclick="selectChild('${c.id}')"
-            class="px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1.5 ${isActive ? 'tab-active' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}">
+            class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 ${isActive ? 'tab-active' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}">
             <span>${icon}</span>
             <span>${escapeHTML(c.name)}</span>
           </button>
@@ -501,33 +704,33 @@
     }
 
     function renderProfileBanner(child) {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      document.getElementById('avatarBadge').textContent = child.gender === 'M' ? '👦' : '👧';
-      document.getElementById('avatarBadge').className = child.gender === 'M'
-        ? 'w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-2xl'
-        : 'w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl';
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      const avatar = document.getElementById('avatarBadge');
+      avatar.textContent = child.gender === 'M' ? '👦' : '👧';
+      avatar.className = child.gender === 'M'
+        ? 'w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl sm:text-2xl'
+        : 'w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl sm:text-2xl';
 
       document.getElementById('displayChildName').textContent = child.name;
       const genderBadge = document.getElementById('displayChildGender');
       genderBadge.textContent = child.gender === 'M' ? '남아' : '여아';
       genderBadge.className = child.gender === 'M'
-        ? 'text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700'
-        : 'text-xs px-2.5 py-0.5 rounded-full font-semibold bg-rose-100 text-rose-600';
+        ? 'text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700'
+        : 'text-xs px-2 py-0.5 rounded-full font-semibold bg-rose-100 text-rose-600';
 
       document.getElementById('displayChildAge').textContent =
         `생년월일: ${child.birthDate} · 현재 ${formatAgeText(child.birthDate, todayStr)}`;
 
       const delBtn = document.getElementById('deleteChildBtn');
-      if (appState.children.length > 1) {
-        delBtn.classList.remove('hidden');
-      } else {
-        delBtn.classList.add('hidden');
-      }
+      if (appState.children.length > 1) delBtn.classList.remove('hidden');
+      else delBtn.classList.add('hidden');
     }
 
     function renderSummaryCards(child) {
       const monthly = getMonthlyGroupedRecords(child);
-      const totalCount = child.records.length;
+      const totalCount = (child.records || []).length;
       document.getElementById('totalRecordsCount').innerHTML = `${totalCount}<span class="text-sm font-normal text-slate-400">회</span>`;
 
       if (monthly.length === 0) {
@@ -549,8 +752,8 @@
       const last = monthly[monthly.length - 1].latest;
       const prev = monthly.length >= 2 ? monthly[monthly.length - 2].latest : null;
 
-      const monthsAtMeasure = getExactMonths(child.birthDate, last.date);
-      const evalRes = evaluateGrowth(child.gender, monthsAtMeasure, last.height, last.weight);
+      const mos = getExactMonths(child.birthDate, last.date);
+      const evalRes = evaluateGrowth(child.gender, mos, last.height, last.weight);
 
       document.getElementById('latestHeight').innerHTML = `${last.height.toFixed(1)} <span class="text-sm font-normal text-slate-400">cm</span>`;
       document.getElementById('latestWeight').innerHTML = `${last.weight.toFixed(1)} <span class="text-sm font-normal text-slate-400">kg</span>`;
@@ -561,7 +764,6 @@
       document.getElementById('avgWeightRef').textContent = `${evalRes.avgW} kg`;
       document.getElementById('weightPercentile').textContent = `${evalRes.wPct}백분위 (상위 ${Math.max(1, evalRes.wTop)}%)`;
 
-      // BMI 계산
       const hMeter = last.height / 100;
       const bmi = last.weight / (hMeter * hMeter);
       document.getElementById('latestBMI').textContent = bmi.toFixed(1);
@@ -576,11 +778,11 @@
         const wDiff = (last.weight - prev.weight).toFixed(1);
         document.getElementById('heightDiffBadge').textContent = `${hDiff >= 0 ? '+' : ''}${hDiff}cm`;
         document.getElementById('weightDiffBadge').textContent = `${wDiff >= 0 ? '+' : ''}${wDiff}kg`;
-        document.getElementById('recentGrowthRate').textContent = `키 ${hDiff >= 0 ? '+' : ''}${hDiff}cm / ${wDiff >= 0 ? '+' : ''}${wDiff}kg`;
+        document.getElementById('recentGrowthRate').textContent = `${hDiff >= 0 ? '+' : ''}${hDiff}cm / ${wDiff >= 0 ? '+' : ''}${wDiff}kg`;
       } else {
         document.getElementById('heightDiffBadge').textContent = '첫 기록';
         document.getElementById('weightDiffBadge').textContent = '첫 기록';
-        document.getElementById('recentGrowthRate').textContent = '다음 달 비교 시작';
+        document.getElementById('recentGrowthRate').textContent = '다음 달 비교';
       }
     }
 
@@ -632,6 +834,7 @@
           ]
         },
         options: {
+          animation: false,
           responsive: true,
           maintainAspectRatio: false,
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
@@ -672,6 +875,7 @@
           ]
         },
         options: {
+          animation: false,
           responsive: true,
           maintainAspectRatio: false,
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
@@ -688,11 +892,11 @@
       const isMonthly = appState.tableMode === 'monthly';
       document.getElementById('colPeriodHeader').textContent = isMonthly ? '기준 월 (측정일)' : '측정 날짜';
 
-      if (child.records.length === 0) {
+      if (!child.records || child.records.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="8" class="py-10 text-center text-slate-400 text-sm">
-              아직 등록된 성장 기록이 없습니다. 위 입력창에서 날짜와 키·몸무게를 입력해보세요!
+            <td colspan="8" class="py-10 text-center text-slate-400 text-xs sm:text-sm">
+              등록된 성장 기록이 없습니다. 상단 [프로필 수정]에서 자녀 생년월일을 맞춘 뒤 키와 몸무게를 입력해보세요!
             </td>
           </tr>
         `;
@@ -775,11 +979,11 @@
     }
 
     // =========================================================================
-    // 5. 사용자 액션 핸들러
+    // 4. 사용자 액션 및 시트 동기화 연결
     // =========================================================================
     function selectChild(childId) {
       appState.selectedChildId = childId;
-      saveState();
+      saveLocalState();
       renderAll();
     }
 
@@ -797,7 +1001,7 @@
       renderTable(getCurrentChild());
     }
 
-    function addRecord(e) {
+    async function addRecord(e) {
       e.preventDefault();
       const child = getCurrentChild();
       const date = document.getElementById('inputDate').value;
@@ -807,28 +1011,53 @@
 
       if (!date || isNaN(height) || isNaN(weight)) return;
 
-      child.records.push({
+      const newRec = {
         id: 'rec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
         date,
         height,
         weight,
         memo
-      });
+      };
 
+      child.records.push(newRec);
+      lastDataSignature = JSON.stringify(appState.children);
       document.getElementById('inputHeight').value = '';
       document.getElementById('inputWeight').value = '';
       document.getElementById('inputMemo').value = '';
 
-      saveState();
+      saveLocalState();
       renderAll();
+
+      await postToSheets({
+        action: 'saveChild',
+        child: {
+          id: child.id,
+          name: child.name,
+          gender: child.gender,
+          birthDate: child.birthDate
+        }
+      }, true);
+
+      await postToSheets({
+        action: 'addRecord',
+        childId: child.id,
+        childName: child.name,
+        record: newRec
+      });
     }
 
-    function deleteRecord(recordId) {
+    async function deleteRecord(recordId) {
       if (!confirm('이 측정 기록을 삭제할까요?')) return;
       const child = getCurrentChild();
       child.records = child.records.filter(r => r.id !== recordId);
-      saveState();
+      lastDataSignature = JSON.stringify(appState.children);
+      saveLocalState();
       renderAll();
+
+      await postToSheets({
+        action: 'deleteRecord',
+        recordId: recordId
+      });
     }
 
     function openChildModal(isEdit = false) {
@@ -857,7 +1086,7 @@
       modal.classList.remove('flex');
     }
 
-    function saveChildProfile(e) {
+    async function saveChildProfile(e) {
       e.preventDefault();
       const name = document.getElementById('modalName').value.trim();
       const gender = document.querySelector('input[name="modalGender"]:checked').value;
@@ -865,41 +1094,89 @@
 
       if (!name || !birthDate) return;
 
+      let targetChild;
       if (appState.editingChild) {
-        const child = getCurrentChild();
-        child.name = name;
-        child.gender = gender;
-        child.birthDate = birthDate;
+        targetChild = getCurrentChild();
+        targetChild.name = name;
+        targetChild.gender = gender;
+        targetChild.birthDate = birthDate;
       } else {
         const newId = 'child_' + Date.now();
-        appState.children.push({
-          id: newId,
-          name,
-          gender,
-          birthDate,
-          records: []
-        });
+        targetChild = { id: newId, name, gender, birthDate, records: [] };
+        appState.children.push(targetChild);
         appState.selectedChildId = newId;
       }
 
-      saveState();
+      lastDataSignature = JSON.stringify(appState.children);
+      saveLocalState();
       closeChildModal();
       renderAll();
+
+      await postToSheets({
+        action: 'saveChild',
+        child: {
+          id: targetChild.id,
+          name: targetChild.name,
+          gender: targetChild.gender,
+          birthDate: targetChild.birthDate
+        }
+      });
     }
 
-    function deleteCurrentChild() {
+    async function deleteCurrentChild() {
       if (appState.children.length <= 1) return;
       const child = getCurrentChild();
       if (!confirm(`'${child.name}' 프로필과 모든 성장 기록을 삭제할까요?`)) return;
-      appState.children = appState.children.filter(c => c.id !== child.id);
+      const deletedId = child.id;
+      appState.children = appState.children.filter(c => c.id !== deletedId);
       appState.selectedChildId = appState.children[0].id;
-      saveState();
+      lastDataSignature = JSON.stringify(appState.children);
+      saveLocalState();
       renderAll();
+
+      await postToSheets({
+        action: 'deleteChild',
+        childId: deletedId
+      });
     }
 
     // =========================================================================
-    // 6. 백업 / 복원 / 엑셀(CSV) 내보내기 / 샘플 데이터
+    // 5. 시트 연동 설정 모달 & 백업/샘플
     // =========================================================================
+    function openSettingsModal() {
+      document.getElementById('gasUrlInput').value = getGasUrl();
+      const modal = document.getElementById('settingsModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function saveGasUrl() {
+      const val = document.getElementById('gasUrlInput').value.trim();
+      if (val && val !== DEFAULT_GAS_URL) {
+        localStorage.setItem(URL_STORAGE_KEY, val);
+      } else {
+        localStorage.removeItem(URL_STORAGE_KEY);
+      }
+      closeSettingsModal();
+      fetchFromSheets(false);
+    }
+
+    async function pushLocalToSheets() {
+      if (!getGasUrl()) {
+        alert('먼저 위에 Apps Script 웹 앱 URL을 입력하고 [연결 및 동기화]를 눌러주세요.');
+        return;
+      }
+      if (!confirm('현재 화면의 모든 자녀와 기록 데이터를 구글 시트에 덮어쓸까요?')) return;
+      closeSettingsModal();
+      await postToSheets({ action: 'syncAll', children: appState.children });
+    }
+
     function exportCSV() {
       const child = getCurrentChild();
       const sorted = getSortedRecords(child);
@@ -912,15 +1189,8 @@
         const mos = getExactMonths(child.birthDate, r.date);
         const ev = evaluateGrowth(child.gender, mos, r.height, r.weight);
         return [
-          `"${child.name}"`,
-          r.date,
-          `"${formatAgeText(child.birthDate, r.date)}"`,
-          r.height.toFixed(1),
-          ev.avgH,
-          ev.hPct,
-          r.weight.toFixed(1),
-          ev.avgW,
-          ev.wPct,
+          `"${child.name}"`, r.date, `"${formatAgeText(child.birthDate, r.date)}"`,
+          r.height.toFixed(1), ev.avgH, ev.hPct, r.weight.toFixed(1), ev.avgW, ev.wPct,
           `"${(r.memo || '').replace(/"/g, '""')}"`
         ].join(',');
       });
@@ -940,7 +1210,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `우리아이_성장기록_전체백업_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `우리아이_성장기록_백업_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -949,15 +1219,17 @@
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = function(evt) {
+      reader.onload = async function(evt) {
         try {
           const data = JSON.parse(evt.target.result);
           if (Array.isArray(data) && data.length > 0 && data[0].name) {
             appState.children = data;
             appState.selectedChildId = data[0].id;
-            saveState();
+            lastDataSignature = JSON.stringify(appState.children);
+            saveLocalState();
             renderAll();
-            alert('백업 데이터를 성공적으로 복원했습니다!');
+            await postToSheets({ action: 'syncAll', children: appState.children });
+            alert('복원 및 시트 동기화가 완료되었습니다!');
           } else {
             alert('올바른 백업 파일 형식이 아닙니다.');
           }
@@ -969,8 +1241,8 @@
       e.target.value = '';
     }
 
-    function loadSampleData() {
-      if (!confirm('현재 데이터에 예시 자녀 2명(첫째·둘째)의 6개월치 성장 샘플 데이터를 불러올까요?')) return;
+    async function loadSampleData() {
+      if (!confirm('예시 자녀 2명(첫째·둘째)의 성장 샘플 데이터를 불러올까요? (시트에도 즉시 반영됩니다)')) return;
       appState.children = [
         {
           id: 'sample_1',
@@ -979,7 +1251,7 @@
           birthDate: '2016-04-10',
           records: [
             { id: 's1', date: '2026-06-15', height: 139.2, weight: 35.0, memo: '학교 신체검사' },
-            { id: 's2', date: '2026-07-18', height: 139.8, weight: 35.4, memo: '방학 시작 측정' },
+            { id: 's2', date: '2026-07-18', height: 139.8, weight: 35.4, memo: '여름방학 측정' },
             { id: 's3', date: '2026-08-20', height: 140.5, weight: 36.1, memo: '수영 특강 후' },
             { id: 's4', date: '2026-09-14', height: 141.0, weight: 36.5, memo: '2학기 측정' },
             { id: 's5', date: '2026-10-19', height: 141.7, weight: 37.0, memo: '소아과 정기검진' },
@@ -999,14 +1271,19 @@
         }
       ];
       appState.selectedChildId = 'sample_1';
-      saveState();
+      lastDataSignature = JSON.stringify(appState.children);
+      saveLocalState();
       renderAll();
+      await postToSheets({ action: 'syncAll', children: appState.children });
     }
 
-    // 초기화 실행
-    document.getElementById('inputDate').value = new Date().toISOString().slice(0, 10);
-    loadState();
+    // 초기화 및 실시간 양방향 동기화 루프 시작
+    const now = new Date();
+    document.getElementById('inputDate').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    loadLocalState();
     renderAll();
+    fetchFromSheets(false);
+    startRealtimeSyncLoop();
   </script>
 </body>
 </html>
