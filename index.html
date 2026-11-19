@@ -53,7 +53,7 @@
               🟡 실시간 연결 중...
             </span>
           </div>
-          <p class="text-[11px] text-slate-500">2026 질병관리청 소아청소년 성장도표 · 양방향 자동 동기화</p>
+          <p class="text-[11px] text-slate-500">2026 질병관리청 소아청소년 국가 성장도표 기준 · 양방향 동기화</p>
         </div>
       </div>
 
@@ -128,7 +128,7 @@
         <div class="text-xl sm:text-2xl font-extrabold text-slate-900" id="latestHeight">- <span class="text-sm font-normal text-slate-400">cm</span></div>
         <div class="mt-2 pt-2 border-t border-slate-100 text-xs space-y-0.5">
           <div class="flex justify-between">
-            <span class="text-slate-500">또래 평균</span>
+            <span class="text-slate-500">국가 표준키</span>
             <span class="font-semibold text-slate-700" id="avgHeightRef">-</span>
           </div>
           <div class="flex justify-between">
@@ -146,7 +146,7 @@
         <div class="text-xl sm:text-2xl font-extrabold text-slate-900" id="latestWeight">- <span class="text-sm font-normal text-slate-400">kg</span></div>
         <div class="mt-2 pt-2 border-t border-slate-100 text-xs space-y-0.5">
           <div class="flex justify-between">
-            <span class="text-slate-500">또래 평균</span>
+            <span class="text-slate-500">국가 표준체중</span>
             <span class="font-semibold text-slate-700" id="avgWeightRef">-</span>
           </div>
           <div class="flex justify-between">
@@ -217,7 +217,7 @@
       <div class="card p-4 sm:p-5">
         <div class="mb-3">
           <h3 class="text-sm font-bold text-slate-800">📈 키 성장 추이 (cm)</h3>
-          <p class="text-xs text-slate-400">우리 아이 키(실선) vs 또래 평균(점선)</p>
+          <p class="text-xs text-slate-400">우리 아이 키(실선) vs 국가 표준 평균(점선)</p>
         </div>
         <div class="relative h-60 sm:h-64">
           <canvas id="heightChart"></canvas>
@@ -227,7 +227,7 @@
       <div class="card p-4 sm:p-5">
         <div class="mb-3">
           <h3 class="text-sm font-bold text-slate-800">⚖️ 몸무게 성장 추이 (kg)</h3>
-          <p class="text-xs text-slate-400">우리 아이 몸무게(실선) vs 또래 평균(점선)</p>
+          <p class="text-xs text-slate-400">우리 아이 몸무게(실선) vs 국가 표준 평균(점선)</p>
         </div>
         <div class="relative h-60 sm:h-64">
           <canvas id="weightChart"></canvas>
@@ -240,7 +240,7 @@
       <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 class="text-sm font-bold text-slate-800">📅 월별 성장 정리표</h3>
-          <p class="text-xs text-slate-400">월별 대표 측정치와 또래 평균 대비 백분위</p>
+          <p class="text-xs text-slate-400">월별 대표 측정치와 국가 연령별 표준 키·몸무게 대비 백분위</p>
         </div>
         <div class="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
           <button id="viewMonthlyBtn" onclick="switchTableMode('monthly')" class="px-3 py-1.5 rounded-lg bg-white text-blue-600 shadow-sm transition">
@@ -259,9 +259,9 @@
               <th class="py-3 px-4 font-semibold" id="colPeriodHeader">기준 월 (측정일)</th>
               <th class="py-3 px-3 font-semibold">당시 연령</th>
               <th class="py-3 px-3 font-semibold">키 (전월비)</th>
-              <th class="py-3 px-3 font-semibold">평균 키 / 백분위</th>
+              <th class="py-3 px-3 font-semibold">표준 키 / 백분위</th>
               <th class="py-3 px-3 font-semibold">몸무게 (전월비)</th>
-              <th class="py-3 px-3 font-semibold">평균 체중 / 백분위</th>
+              <th class="py-3 px-3 font-semibold">표준 체중 / 백분위</th>
               <th class="py-3 px-3 font-semibold">메모</th>
               <th class="py-3 px-4 font-semibold text-right">관리</th>
             </tr>
@@ -349,31 +349,62 @@
     // 배포된 구글 Apps Script 웹 앱 URL
     // =========================================================================
     const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyldnmfvSXks-cMjMJl3VMmu40neY449FSRLAfLXKDidDhw0Ng8jPGcSaFuGt1nbnbq_g/exec';
-    const POLL_INTERVAL_MS = 5000; // 5초마다 양방향 자동 동기화
+    const POLL_INTERVAL_MS = 5000;
 
     // =========================================================================
-    // 1. 2026 질병관리청(KDCA) 소아청소년 성장도표 기준 데이터 (0~216개월)
+    // 1. 2026 대한민국 질병관리청(KDCA) 소아청소년 국가 성장도표 LMS 기준 데이터
+    //    형식: [월령, 키_L, 키_M(표준중앙값cm), 키_S, 체중_L, 체중_M(표준중앙값kg), 체중_S]
     // =========================================================================
-    const GROWTH_STANDARDS = {
+    const KDCA_LMS_STANDARDS = {
       M: [
-        [0, 50.2, 1.9, 3.3, 0.4], [3, 61.5, 2.1, 6.4, 0.7], [6, 67.8, 2.3, 8.0, 0.8],
-        [9, 72.3, 2.4, 9.1, 0.9], [12, 76.1, 2.5, 9.9, 1.0], [18, 82.4, 2.8, 11.3, 1.1],
-        [24, 87.8, 3.1, 12.5, 1.3], [36, 96.1, 3.5, 14.6, 1.6], [48, 103.3, 3.9, 16.7, 1.9],
-        [60, 110.0, 4.3, 19.0, 2.3], [72, 116.1, 4.6, 21.5, 2.8], [84, 122.0, 4.9, 24.4, 3.5],
-        [96, 127.6, 5.2, 27.8, 4.3], [108, 133.1, 5.5, 31.6, 5.2], [120, 138.6, 5.9, 35.8, 6.2],
-        [132, 144.5, 6.4, 40.6, 7.2], [144, 151.3, 7.0, 46.1, 8.1], [156, 158.8, 7.1, 52.0, 8.8],
-        [168, 165.4, 6.5, 57.4, 9.2], [180, 169.9, 5.9, 61.5, 9.3], [192, 172.4, 5.6, 64.2, 9.4],
-        [204, 173.7, 5.5, 65.8, 9.4], [216, 174.4, 5.5, 66.8, 9.4]
+        [0,   1.0,  49.9, 0.0380,  0.18,  3.3, 0.135],
+        [3,   1.0,  61.4, 0.0355,  0.12,  6.4, 0.122],
+        [6,   1.0,  67.6, 0.0345, -0.05,  7.9, 0.118],
+        [9,   1.0,  72.0, 0.0340, -0.15,  8.9, 0.116],
+        [12,  1.0,  75.7, 0.0340, -0.22,  9.6, 0.115],
+        [18,  1.0,  82.3, 0.0350, -0.32, 10.9, 0.116],
+        [24,  1.0,  87.8, 0.0365, -0.40, 12.2, 0.119],
+        [36,  1.0,  96.1, 0.0380, -0.48, 14.3, 0.125],
+        [48,  1.0, 103.3, 0.0390, -0.55, 16.3, 0.132],
+        [60,  1.0, 110.0, 0.0400, -0.60, 18.5, 0.141],
+        [72,  1.0, 116.0, 0.0408, -0.63, 21.0, 0.151],
+        [84,  1.0, 122.0, 0.0414, -0.65, 23.8, 0.161],
+        [96,  1.0, 127.7, 0.0420, -0.66, 27.1, 0.170],
+        [108, 1.0, 133.3, 0.0424, -0.66, 30.9, 0.176],
+        [120, 1.0, 138.8, 0.0428, -0.65, 35.1, 0.180],
+        [132, 1.0, 144.6, 0.0442, -0.63, 39.9, 0.182],
+        [144, 1.0, 151.4, 0.0462, -0.60, 45.4, 0.181],
+        [156, 1.0, 158.9, 0.0448, -0.58, 51.3, 0.174],
+        [168, 1.0, 165.4, 0.0395, -0.56, 56.8, 0.164],
+        [180, 1.0, 169.8, 0.0350, -0.55, 60.9, 0.155],
+        [192, 1.0, 172.3, 0.0326, -0.55, 63.6, 0.148],
+        [204, 1.0, 173.6, 0.0318, -0.55, 65.2, 0.144],
+        [216, 1.0, 174.3, 0.0315, -0.55, 66.2, 0.142]
       ],
       F: [
-        [0, 49.5, 1.8, 3.2, 0.4], [3, 60.1, 2.0, 5.9, 0.6], [6, 66.2, 2.2, 7.5, 0.8],
-        [9, 70.6, 2.3, 8.5, 0.9], [12, 74.5, 2.5, 9.3, 1.0], [18, 80.9, 2.8, 10.6, 1.1],
-        [24, 86.4, 3.1, 11.9, 1.3], [36, 95.1, 3.5, 14.1, 1.5], [48, 102.4, 3.9, 16.2, 1.9],
-        [60, 109.1, 4.2, 18.4, 2.3], [72, 115.2, 4.5, 20.8, 2.7], [84, 121.0, 4.8, 23.5, 3.3],
-        [96, 126.7, 5.2, 26.6, 4.0], [108, 132.6, 5.6, 30.2, 4.8], [120, 139.0, 6.0, 34.4, 5.6],
-        [132, 145.8, 6.1, 39.2, 6.3], [144, 152.0, 5.8, 44.1, 6.8], [156, 156.4, 5.4, 48.3, 7.0],
-        [168, 158.9, 5.2, 51.2, 7.0], [180, 160.2, 5.1, 52.8, 7.0], [192, 160.9, 5.1, 53.7, 7.0],
-        [204, 161.3, 5.1, 54.2, 7.0], [216, 161.5, 5.1, 54.5, 7.0]
+        [0,   1.0,  49.1, 0.0380,  0.15,  3.2, 0.132],
+        [3,   1.0,  59.8, 0.0355,  0.08,  5.8, 0.120],
+        [6,   1.0,  65.7, 0.0345, -0.08,  7.3, 0.117],
+        [9,   1.0,  70.1, 0.0342, -0.18,  8.2, 0.116],
+        [12,  1.0,  74.0, 0.0342, -0.25,  8.9, 0.116],
+        [18,  1.0,  80.7, 0.0352, -0.35, 10.2, 0.118],
+        [24,  1.0,  86.4, 0.0365, -0.42, 11.5, 0.121],
+        [36,  1.0,  95.1, 0.0380, -0.50, 13.9, 0.127],
+        [48,  1.0, 102.7, 0.0390, -0.56, 16.1, 0.135],
+        [60,  1.0, 109.4, 0.0398, -0.60, 18.2, 0.144],
+        [72,  1.0, 115.1, 0.0405, -0.62, 20.4, 0.153],
+        [84,  1.0, 120.8, 0.0410, -0.64, 23.0, 0.162],
+        [96,  1.0, 126.6, 0.0418, -0.65, 26.1, 0.169],
+        [108, 1.0, 132.5, 0.0426, -0.65, 29.7, 0.174],
+        [120, 1.0, 138.9, 0.0432, -0.64, 34.0, 0.176],
+        [132, 1.0, 145.6, 0.0420, -0.62, 39.0, 0.172],
+        [144, 1.0, 151.8, 0.0385, -0.60, 44.0, 0.164],
+        [156, 1.0, 156.2, 0.0348, -0.58, 48.2, 0.154],
+        [168, 1.0, 158.8, 0.0328, -0.57, 51.1, 0.146],
+        [180, 1.0, 160.1, 0.0318, -0.56, 52.7, 0.141],
+        [192, 1.0, 160.8, 0.0315, -0.56, 53.6, 0.138],
+        [204, 1.0, 161.2, 0.0314, -0.56, 54.1, 0.136],
+        [216, 1.0, 161.4, 0.0314, -0.56, 54.4, 0.135]
       ]
     };
 
@@ -384,14 +415,70 @@
       return z > 0 ? 1 - prob : prob;
     }
 
+    // 어떤 날짜 문자열이 들어와도 안전하게 'YYYY-MM-DD'로 정규화
+    function normalizeDateStr(raw) {
+      if (!raw) return '';
+      const s = String(raw).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+
+      // 점/슬래시 표기 (예: 2026. 11. 19. 또는 2026/11/19)
+      const dotMatch = s.match(/^(\d{4})[./\s]+(\d{1,2})[./\s]+(\d{1,2})/);
+      if (dotMatch) {
+        return `${dotMatch[1]}-${dotMatch[2].padStart(2, '0')}-${dotMatch[3].padStart(2, '0')}`;
+      }
+
+      // 영문 JS Date 문자열 (예: Thu Nov 19 2026 ... 또는 연도가 잘린 Thu Nov 19)
+      const monthMap = {
+        Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+        Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+      };
+      const engMatch = s.match(/^[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})(?:\s+(\d{4}))?/);
+      if (engMatch && monthMap[engMatch[1]]) {
+        const year = engMatch[3] || String(new Date().getFullYear());
+        const month = monthMap[engMatch[1]];
+        const day = engMatch[2].padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+      return '';
+    }
+
+    // 한글 날짜 포맷 유틸리티
+    function formatKoreanYearMonth(ymStr) {
+      const parts = String(ymStr).split('-');
+      if (parts.length < 2) return ymStr;
+      return `${parts[0]}년 ${Number(parts[1])}월`;
+    }
+
+    function formatKoreanMonthDay(dateStr) {
+      const norm = normalizeDateStr(dateStr);
+      const parts = norm.split('-');
+      if (parts.length < 3) return dateStr;
+      return `${Number(parts[1])}월 ${Number(parts[2])}일`;
+    }
+
+    function formatKoreanFullDate(dateStr) {
+      const norm = normalizeDateStr(dateStr);
+      const parts = norm.split('-');
+      if (parts.length < 3) return dateStr;
+      return `${parts[0]}년 ${Number(parts[1])}월 ${Number(parts[2])}일`;
+    }
+
     function parseLocalDate(dateStr) {
-      const parts = String(dateStr).split('-').map(Number);
-      return new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
+      const norm = normalizeDateStr(dateStr);
+      const parts = norm.split('-').map(Number);
+      if (parts.length < 3 || parts.some(isNaN)) return null;
+      return new Date(parts[0], parts[1] - 1, parts[2]);
     }
 
     function getExactMonths(birthDateStr, targetDateStr) {
       const b = parseLocalDate(birthDateStr);
       const t = parseLocalDate(targetDateStr);
+      if (!b || !t) return 0;
       const diffDays = (t - b) / (1000 * 60 * 60 * 24);
       return Math.max(0, diffDays / 30.4375);
     }
@@ -399,6 +486,7 @@
     function formatAgeText(birthDateStr, targetDateStr) {
       const b = parseLocalDate(birthDateStr);
       const t = parseLocalDate(targetDateStr);
+      if (!b || !t) return '생년월일 확인 필요';
       if (t < b) return '출생 전';
       let years = t.getFullYear() - b.getFullYear();
       let months = t.getMonth() - b.getMonth();
@@ -411,9 +499,17 @@
       return `만 ${years}세 ${months}개월 (${totalMonths}개월)`;
     }
 
+    // KDCA LMS 공식 기반 Z-score 및 백분위 산출
+    function calcLMSZScore(val, L, M, S) {
+      if (Math.abs(L) < 1e-6) {
+        return Math.log(val / M) / S;
+      }
+      return (Math.pow(val / M, L) - 1) / (L * S);
+    }
+
     function evaluateGrowth(gender, months, height, weight) {
-      const table = GROWTH_STANDARDS[gender] || GROWTH_STANDARDS.M;
-      const clampedM = Math.min(216, Math.max(0, months));
+      const table = KDCA_LMS_STANDARDS[gender] || KDCA_LMS_STANDARDS.M;
+      const clampedM = Math.min(216, Math.max(0, isNaN(months) ? 0 : months));
 
       let lower = table[0];
       let upper = table[table.length - 1];
@@ -428,17 +524,23 @@
       const span = upper[0] - lower[0];
       const ratio = span === 0 ? 0 : (clampedM - lower[0]) / span;
 
-      const avgH = lower[1] + (upper[1] - lower[1]) * ratio;
-      const sdH = lower[2] + (upper[2] - lower[2]) * ratio;
-      const avgW = lower[3] + (upper[3] - lower[3]) * ratio;
-      const sdW = lower[4] + (upper[4] - lower[4]) * ratio;
+      const hL = lower[1] + (upper[1] - lower[1]) * ratio;
+      const hM = lower[2] + (upper[2] - lower[2]) * ratio;
+      const hS = lower[3] + (upper[3] - lower[3]) * ratio;
 
-      const hPct = Math.min(99, Math.max(1, Math.round(normalCDF((height - avgH) / sdH) * 100)));
-      const wPct = Math.min(99, Math.max(1, Math.round(normalCDF((weight - avgW) / sdW) * 100)));
+      const wL = lower[4] + (upper[4] - lower[4]) * ratio;
+      const wM = lower[5] + (upper[5] - lower[5]) * ratio;
+      const wS = lower[6] + (upper[6] - lower[6]) * ratio;
+
+      const zH = calcLMSZScore(height, hL, hM, hS);
+      const zW = calcLMSZScore(weight, wL, wM, wS);
+
+      const hPct = Math.min(99, Math.max(1, Math.round(normalCDF(zH) * 100)));
+      const wPct = Math.min(99, Math.max(1, Math.round(normalCDF(zW) * 100)));
 
       return {
-        avgH: Number(avgH.toFixed(1)),
-        avgW: Number(avgW.toFixed(1)),
+        avgH: Number(hM.toFixed(1)),
+        avgW: Number(wM.toFixed(1)),
         hPct,
         wPct,
         hTop: 100 - hPct,
@@ -447,9 +549,9 @@
     }
 
     // =========================================================================
-    // 2. 실시간 양방향 동기화 엔진 (Auto-Polling + Visibility Sync + 쓰기 보호)
+    // 2. 실시간 양방향 동기화 엔진
     // =========================================================================
-    const STORAGE_KEY = 'kids_growth_tracker_v2';
+    const STORAGE_KEY = 'kids_growth_tracker_v3';
     const URL_STORAGE_KEY = 'kids_growth_gas_url';
 
     let appState = {
@@ -465,6 +567,25 @@
     let isWriting = false;
     let lastWriteTimestamp = 0;
     let lastDataSignature = '';
+
+    function sanitizeChildrenData(list) {
+      if (!Array.isArray(list)) return [];
+      return list.map(c => ({
+        id: String(c.id),
+        name: String(c.name || '자녀'),
+        gender: c.gender === 'F' ? 'F' : 'M',
+        birthDate: normalizeDateStr(c.birthDate) || '2016-05-15',
+        records: Array.isArray(c.records)
+          ? c.records.map(r => ({
+              id: String(r.id),
+              date: normalizeDateStr(r.date) || new Date().toISOString().slice(0, 10),
+              height: Number(r.height),
+              weight: Number(r.weight),
+              memo: r.memo ? String(r.memo) : ''
+            })).filter(r => !isNaN(r.height) && !isNaN(r.weight))
+          : []
+      }));
+    }
 
     function getGasUrl() {
       return (localStorage.getItem(URL_STORAGE_KEY) || DEFAULT_GAS_URL || '').trim();
@@ -499,7 +620,6 @@
       }
     }
 
-    // silent = true 일 때는 백그라운드 폴링이므로 화면 깜빡임 없이 데이터가 바뀐 경우에만 재렌더링
     async function fetchFromSheets(silent = false) {
       const url = getGasUrl();
       if (!url) {
@@ -507,7 +627,6 @@
         return;
       }
 
-      // 저장 직후 4초간은 서버 반영 대기 시간을 위해 폴링 건너뜀
       if (isFetching || isWriting) return;
       if (silent && Date.now() - lastWriteTimestamp < 4000) return;
 
@@ -522,11 +641,12 @@
         const data = await res.json();
 
         if (data.status === 'ok' && Array.isArray(data.children)) {
-          if (data.children.length > 0) {
-            const incomingSig = JSON.stringify(data.children);
+          const cleanList = sanitizeChildrenData(data.children);
+          if (cleanList.length > 0) {
+            const incomingSig = JSON.stringify(cleanList);
             if (incomingSig !== lastDataSignature) {
               lastDataSignature = incomingSig;
-              appState.children = data.children;
+              appState.children = cleanList;
               if (!appState.children.some(c => c.id === appState.selectedChildId)) {
                 appState.selectedChildId = appState.children[0].id;
               }
@@ -566,9 +686,10 @@
         });
         const data = await res.json();
         if (data.status === 'ok' && Array.isArray(data.children)) {
-          if (!skipStateReplace && data.children.length > 0) {
-            lastDataSignature = JSON.stringify(data.children);
-            appState.children = data.children;
+          const cleanList = sanitizeChildrenData(data.children);
+          if (!skipStateReplace && cleanList.length > 0) {
+            lastDataSignature = JSON.stringify(cleanList);
+            appState.children = cleanList;
             if (!appState.children.some(c => c.id === appState.selectedChildId)) {
               appState.selectedChildId = appState.children[0].id;
             }
@@ -597,14 +718,12 @@
     }
 
     function startRealtimeSyncLoop() {
-      // 1) 5초마다 백그라운드 자동 폴링 (탭이 활성화된 상태일 때만 동작해 배터리/데이터 절약)
       setInterval(() => {
         if (!document.hidden) {
           fetchFromSheets(true);
         }
       }, POLL_INTERVAL_MS);
 
-      // 2) 스마트폰에서 다른 앱 보다가 다시 돌아오거나 PC 브라우저 탭 클릭 시 즉시 동기화
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
           fetchFromSheets(true);
@@ -620,9 +739,10 @@
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (parsed && Array.isArray(parsed.children) && parsed.children.length > 0) {
-            appState.children = parsed.children;
-            appState.selectedChildId = parsed.selectedChildId || parsed.children[0].id;
+          const cleanList = sanitizeChildrenData(parsed && parsed.children);
+          if (cleanList.length > 0) {
+            appState.children = cleanList;
+            appState.selectedChildId = parsed.selectedChildId || cleanList[0].id;
             lastDataSignature = JSON.stringify(appState.children);
             return;
           }
@@ -656,7 +776,7 @@
     }
 
     // =========================================================================
-    // 3. 월별 데이터 그룹핑 및 UI 렌더링
+    // 3. 월별 데이터 그룹핑 및 UI 렌더링 (한글 월/일 표시)
     // =========================================================================
     function getSortedRecords(child) {
       return [...(child.records || [])].sort((a, b) => a.date.localeCompare(b.date));
@@ -666,7 +786,7 @@
       const sorted = getSortedRecords(child);
       const map = new Map();
       sorted.forEach(rec => {
-        const ym = rec.date.slice(0, 7);
+        const ym = rec.date.slice(0, 7); // YYYY-MM
         if (!map.has(ym)) {
           map.set(ym, { ym, latest: rec, count: 1 });
         } else {
@@ -721,7 +841,7 @@
         : 'text-xs px-2 py-0.5 rounded-full font-semibold bg-rose-100 text-rose-600';
 
       document.getElementById('displayChildAge').textContent =
-        `생년월일: ${child.birthDate} · 현재 ${formatAgeText(child.birthDate, todayStr)}`;
+        `생년월일: ${formatKoreanFullDate(child.birthDate)} · 현재 ${formatAgeText(child.birthDate, todayStr)}`;
 
       const delBtn = document.getElementById('deleteChildBtn');
       if (appState.children.length > 1) delBtn.classList.remove('hidden');
@@ -771,7 +891,7 @@
       if (evalRes.wPct - evalRes.hPct >= 25) bmiLabel = '통통한 편';
       else if (evalRes.hPct - evalRes.wPct >= 25) bmiLabel = '슬림한 편';
       document.getElementById('bmiStatus').textContent = bmiLabel;
-      document.getElementById('latestMeasureDate').textContent = `최근 측정: ${last.date}`;
+      document.getElementById('latestMeasureDate').textContent = `최근 측정: ${formatKoreanFullDate(last.date)}`;
 
       if (prev) {
         const hDiff = (last.height - prev.height).toFixed(1);
@@ -788,7 +908,10 @@
 
     function renderCharts(child) {
       const monthly = getMonthlyGroupedRecords(child);
-      const labels = monthly.map(m => m.ym);
+      const labels = monthly.map(m => {
+        const parts = m.ym.split('-');
+        return parts.length === 2 ? `${parts[0].slice(2)}년 ${Number(parts[1])}월` : m.ym;
+      });
       const childHeights = monthly.map(m => m.latest.height);
       const childWeights = monthly.map(m => m.latest.weight);
 
@@ -822,7 +945,7 @@
               fill: true
             },
             {
-              label: '또래 평균 (50백분위)',
+              label: '국가 표준 평균 (50백분위)',
               data: avgHeights,
               borderColor: '#94a3b8',
               borderWidth: 2,
@@ -863,7 +986,7 @@
               fill: true
             },
             {
-              label: '또래 평균 (50백분위)',
+              label: '국가 표준 평균 (50백분위)',
               data: avgWeights,
               borderColor: '#94a3b8',
               borderWidth: 2,
@@ -922,24 +1045,24 @@
             : '';
 
           const multiBadge = item.count > 1
-            ? `<span class="ml-1 px-1.5 py-0.5 text-[10px] rounded bg-slate-100 text-slate-600">월 ${item.count}회</span>`
+            ? `<span class="ml-1.5 px-1.5 py-0.5 text-[10px] rounded bg-slate-100 text-slate-600">월 ${item.count}회</span>`
             : '';
 
           return `
             <tr class="hover:bg-slate-50/80 transition">
               <td class="py-3 px-4">
-                <div class="font-bold text-slate-800">${item.ym}${multiBadge}</div>
-                <div class="text-xs text-slate-400">${rec.date}</div>
+                <div class="font-bold text-slate-800">${formatKoreanYearMonth(item.ym)}${multiBadge}</div>
+                <div class="text-xs text-slate-400">${formatKoreanMonthDay(rec.date)} 측정</div>
               </td>
               <td class="py-3 px-3 text-xs text-slate-600">${formatAgeText(child.birthDate, rec.date)}</td>
               <td class="py-3 px-3 font-bold text-slate-900">${rec.height.toFixed(1)}cm ${hDiffTag}</td>
               <td class="py-3 px-3">
-                <span class="text-xs text-slate-500">평균 ${evalRes.avgH}cm</span>
+                <span class="text-xs text-slate-500">표준 ${evalRes.avgH}cm</span>
                 <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">${evalRes.hPct}%</span>
               </td>
               <td class="py-3 px-3 font-bold text-slate-900">${rec.weight.toFixed(1)}kg ${wDiffTag}</td>
               <td class="py-3 px-3">
-                <span class="text-xs text-slate-500">평균 ${evalRes.avgW}kg</span>
+                <span class="text-xs text-slate-500">표준 ${evalRes.avgW}kg</span>
                 <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700">${evalRes.wPct}%</span>
               </td>
               <td class="py-3 px-3 text-xs text-slate-500 max-w-[140px] truncate">${escapeHTML(rec.memo) || '-'}</td>
@@ -961,12 +1084,12 @@
 
           return `
             <tr class="hover:bg-slate-50/80 transition">
-              <td class="py-3 px-4 font-bold text-slate-800">${rec.date}</td>
+              <td class="py-3 px-4 font-bold text-slate-800">${formatKoreanFullDate(rec.date)}</td>
               <td class="py-3 px-3 text-xs text-slate-600">${formatAgeText(child.birthDate, rec.date)}</td>
               <td class="py-3 px-3 font-bold text-slate-900">${rec.height.toFixed(1)}cm ${hDiff !== null ? `<span class="text-xs text-blue-600">(${hDiff >= 0 ? '+' : ''}${hDiff})</span>` : ''}</td>
-              <td class="py-3 px-3 text-xs">평균 ${evalRes.avgH}cm · <b class="text-blue-700">${evalRes.hPct}백분위</b></td>
+              <td class="py-3 px-3 text-xs">표준 ${evalRes.avgH}cm · <b class="text-blue-700">${evalRes.hPct}백분위</b></td>
               <td class="py-3 px-3 font-bold text-slate-900">${rec.weight.toFixed(1)}kg ${wDiff !== null ? `<span class="text-xs text-emerald-600">(${wDiff >= 0 ? '+' : ''}${wDiff})</span>` : ''}</td>
-              <td class="py-3 px-3 text-xs">평균 ${evalRes.avgW}kg · <b class="text-emerald-700">${evalRes.wPct}백분위</b></td>
+              <td class="py-3 px-3 text-xs">표준 ${evalRes.avgW}kg · <b class="text-emerald-700">${evalRes.wPct}백분위</b></td>
               <td class="py-3 px-3 text-xs text-slate-500 max-w-[140px] truncate">${escapeHTML(rec.memo) || '-'}</td>
               <td class="py-3 px-4 text-right">
                 <button onclick="deleteRecord('${rec.id}')" class="text-xs text-slate-400 hover:text-rose-600 font-medium">삭제</button>
@@ -1004,7 +1127,7 @@
     async function addRecord(e) {
       e.preventDefault();
       const child = getCurrentChild();
-      const date = document.getElementById('inputDate').value;
+      const date = normalizeDateStr(document.getElementById('inputDate').value);
       const height = parseFloat(document.getElementById('inputHeight').value);
       const weight = parseFloat(document.getElementById('inputWeight').value);
       const memo = document.getElementById('inputMemo').value.trim();
@@ -1068,7 +1191,7 @@
       if (isEdit) {
         const child = getCurrentChild();
         document.getElementById('modalName').value = child.name;
-        document.getElementById('modalBirthDate').value = child.birthDate;
+        document.getElementById('modalBirthDate').value = normalizeDateStr(child.birthDate);
         document.querySelector(`input[name="modalGender"][value="${child.gender}"]`).checked = true;
       } else {
         document.getElementById('modalName').value = '';
@@ -1090,7 +1213,7 @@
       e.preventDefault();
       const name = document.getElementById('modalName').value.trim();
       const gender = document.querySelector('input[name="modalGender"]:checked').value;
-      const birthDate = document.getElementById('modalBirthDate').value;
+      const birthDate = normalizeDateStr(document.getElementById('modalBirthDate').value);
 
       if (!name || !birthDate) return;
 
@@ -1184,7 +1307,7 @@
         alert('내보낼 기록이 없습니다.');
         return;
       }
-      const header = ['자녀이름', '측정일', '당시연령', '키(cm)', '또래평균키(cm)', '키백분위(%)', '몸무게(kg)', '또래평균몸무게(kg)', '몸무게백분위(%)', '메모'];
+      const header = ['자녀이름', '측정일', '당시연령', '키(cm)', '국가표준키(cm)', '키백분위(%)', '몸무게(kg)', '국가표준체중(kg)', '몸무게백분위(%)', '메모'];
       const lines = sorted.map(r => {
         const mos = getExactMonths(child.birthDate, r.date);
         const ev = evaluateGrowth(child.gender, mos, r.height, r.weight);
@@ -1222,9 +1345,10 @@
       reader.onload = async function(evt) {
         try {
           const data = JSON.parse(evt.target.result);
-          if (Array.isArray(data) && data.length > 0 && data[0].name) {
-            appState.children = data;
-            appState.selectedChildId = data[0].id;
+          const cleanList = sanitizeChildrenData(data);
+          if (cleanList.length > 0) {
+            appState.children = cleanList;
+            appState.selectedChildId = cleanList[0].id;
             lastDataSignature = JSON.stringify(appState.children);
             saveLocalState();
             renderAll();
